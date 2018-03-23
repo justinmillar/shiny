@@ -58,9 +58,17 @@ server <- shinyServer(function(input, output) {
       select(Site, Date, Time, input$variable) %>% 
       gather("Variable", "Measurement", input$variable) 
     
-    ggplot(dat, aes(x = Date, y = Measurement)) +
-      geom_point() +
-      facet_wrap(~ Variable + Site)
+    if (input$site2 == 0) {
+      ggplot(dat, aes(x = Date, y = Measurement)) +
+        geom_point() +
+        facet_wrap(~ Variable + Site, ncol = 1, scales = "free_y") +
+        ylab("")
+    } else {
+      ggplot(dat, aes(x = Date, y = Measurement)) +
+        geom_point() +
+        facet_wrap(~ Variable + Site, ncol = 2, scales = "free_y") +
+      ylab("")
+    }
   })
   
   output$table <- renderDataTable({
