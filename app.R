@@ -6,7 +6,8 @@ library(gridExtra)
 dat <- read_csv("data/full-data.csv") %>% 
   select(Site, Date, Salinity, Temperature, Conductivity) %>%
   separate(Date, c("Date", "Time"), sep = " ") %>% 
-  mutate(Date = ymd(Date))
+  mutate(Date = ymd(Date),
+         Site = paste("Site", Site))
 
 ui <- fluidPage(
   
@@ -26,17 +27,15 @@ ui <- fluidPage(
                          choices = list("Salinity (ppt)" = "Salinity",
                                         "Conductivity (mS/cm)"= "Conductivity",
                                         "Temperature (C)" = "Temperature"),
-                         selected = c("Salinity", "Temperature"))
+                         selected = c("Salinity", "Temperature")),
+      downloadButton("downloadData", "Download CSV"),
+      downloadButton("downloadPlot", "Download Plot")
     ),
     
     mainPanel(
       tabsetPanel(
         tabPanel("Tables", dataTableOutput("table")),
-        tabPanel("Plots", 
-                 # plotOutput("salPlot"),
-                 # plotOutput("conPlot"),
-                 # plotOutput("tempPlot"),
-                 plotOutput("plot"))
+        tabPanel("Plots", plotOutput("plot"))
       )
     )
   )
@@ -44,126 +43,49 @@ ui <- fluidPage(
 
 server <- shinyServer(function(input, output) {
   
-  output$table <- renderDataTable({
-    dat %>% 
+  datInput <- reactive({
+    dat <- dat %>% 
       filter(Site == input$site,
              Date >= input$date[1] & Date <= input$date[2]) %>% 
       select(Site, Date, Time, input$variable)
+    dat
+  })
+  
+  plotInput <- reactive({
+    dat <- dat %>% 
+      filter(Site == input$site | Site == input$site2,
+             Date >= input$date[1] & Date <= input$date[2]) %>% 
+      select(Site, Date, Time, input$variable) %>% 
+      gather("Variable", "Measurement", input$variable) 
+    
+    ggplot(dat, aes(x = Date, y = Measurement)) +
+      geom_point() +
+      facet_wrap(~ Variable + Site)
+  })
+  
+  output$table <- renderDataTable({
+    datInput()
   })
   
   output$plot <-renderPlot({
-    
-    sal <- if ("Salinity" %in% input$variable) {
-      if (input$site2 != 0) {
-        df <- dat %>%
-          filter(Site == input$site | Site == input$site2,
-                 Date >= input$date[1] & Date <= input$date[2]) 
-        ggplot(df, aes(x = Date, y = Salinity)) +
-          geom_point() +
-          facet_wrap(~ Site, ncol = 2)
-      } else {
-        df <- dat %>%
-          filter(Site == input$site,
-                 Date >= input$date[1] & Date <= input$date[2])
-        ggplot(df, aes(x = Date, y = Salinity)) +
-          geom_point() 
-      }  
-    }
-    
-    con <- if ("Salinity" %in% input$variable) {
-      if (input$site2 != 0) {
-        df <- dat %>%
-          filter(Site == input$site | Site == input$site2,
-                 Date >= input$date[1] & Date <= input$date[2]) 
-        ggplot(df, aes(x = Date, y = Conductivity)) +
-          geom_point() +
-          facet_wrap(~ Site, ncol = 2)
-      } else {
-        df <- dat %>%
-          filter(Site == input$site,
-                 Date >= input$date[1] & Date <= input$date[2])
-        ggplot(df, aes(x = Date, y = Conductivity)) +
-          geom_point() 
-      }  
-    }
-    
-    tmp <- if ("Salinity" %in% input$variable) {
-      if (input$site2 != 0) {
-        df <- dat %>%
-          filter(Site == input$site | Site == input$site2,
-                 Date >= input$date[1] & Date <= input$date[2]) 
-        ggplot(df, aes(x = Date, y = Temperature)) +
-          geom_point() +
-          facet_wrap(~ Site, ncol = 2)
-      } else {
-        df <- dat %>%
-          filter(Site == input$site,
-                 Date >= input$date[1] & Date <= input$date[2])
-        ggplot(df, aes(x = Date, y = Temperature)) +
-          geom_point() 
-      }  
-    }
-  
-    
+    plotInput()
   })
   
-  output$salPlot <- renderPlot({
-    if ("Salinity" %in% input$variable) {
-      if (input$site2 != 0) {
-        df <- dat %>%
-          filter(Site == input$site | Site == input$site2,
-                 Date >= input$date[1] & Date <= input$date[2]) 
-        ggplot(df, aes(x = Date, y = Salinity)) +
-          geom_point() +
-          facet_wrap(~ Site, ncol = 2)
-      } else {
-        df <- dat %>%
-          filter(Site == input$site,
-                 Date >= input$date[1] & Date <= input$date[2])
-        ggplot(df, aes(x = Date, y = Salinity)) +
-          geom_point() 
-      }  
-    } else {"404"}
-  })
-
-  output$conPlot <- renderPlot({
-    if ("Conductivity" %in% input$variable){
-      if (input$site2 != 0) {
-        df <- dat %>%
-          filter(Site == input$site | Site == input$site2,
-                 Date >= input$date[1] & Date <= input$date[2]) 
-        ggplot(df, aes(x = Date, y = Conductivity)) +
-          geom_point() +
-          facet_wrap(~ Site, ncol = 2)
-      } else {
-        df <- dat %>%
-          filter(Site == input$site,
-                 Date >= input$date[1] & Date <= input$date[2])
-        ggplot(df, aes(x = Date, y = Conductivity)) +
-          geom_point() 
-      }
-    }
-  }) 
+  output$downloadData <- downloadHandler(
+    filename = function() {
+      paste("oyster-data", ".csv", sep="")
+    },
+    content = function(file) {
+      write.csv(datInput(), file)
+    })
   
-  output$tempPlot <- renderPlot({
-    if ("Temperature" %in% input$variable) {
-      if (input$site2 != 0) {
-        df <- dat %>%
-          filter(Site == input$site | Site == input$site2,
-                 Date >= input$date[1] & Date <= input$date[2]) 
-        ggplot(df, aes(x = Date, y = Temperature)) +
-          geom_point() +
-          facet_wrap(~ Site, ncol = 2)
-      } else {
-        df <- dat %>%
-          filter(Site == input$site,
-                 Date >= input$date[1] & Date <= input$date[2])
-        ggplot(df, aes(x = Date, y = Temperature)) +
-          geom_point() 
-      }
-    }
-  }) 
-  
+  output$downloadPlot <- downloadHandler(
+    filename = function() {
+      paste("oyster-plot", ".png", sep="")
+    },
+    content = function(file) {
+      ggsave(file, plotInput(), device = "png")
+    })
 })
 
 # Run the application 
